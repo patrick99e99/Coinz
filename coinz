@@ -8,17 +8,36 @@ class Coinz
   API_URL = 'https://api.coinmarketcap.com/v1/ticker/'
 
   def initialize
-    ethereum_price_in_btc = data_for('ethereum', parsed_response)['price_btc'].to_f
-    total_in_usd = 0
-    total_in_btc = 0
-    total_in_eth = 0
+    @total_in_usd = 0
+    @total_in_btc = 0
+    @total_in_eth = 0
 
+    show_financial_status
+  end
+
+  private
+
+  attr_accessor :total_in_usd, :total_in_btc, :total_in_eth
+
+  def show_financial_status
     system 'clear'
     separator
+    process_tokens
+    separator
+    total_amount
+    separator
+    puts
+  end
 
+  def process_tokens
     if tokens.any?
+      ethereum_price_in_btc = data_for('ethereum', parsed_response)['price_btc'].to_f
+
       tokens.each do |ticker, amount|
+        next if !amount || amount.zero?
+
         data = data_for(ticker, parsed_response)
+
         if !data
           puts "cannot find #{ticker}"
         else
@@ -28,19 +47,14 @@ class Coinz
 
           puts "#{data['symbol']}: #{formatted_usd(amount)} @ $#{data['price_usd']} is worth: $#{formatted_usd(in_usd)} / #{formatted_crypto(in_btc)} BTC / #{formatted_crypto(in_eth)} ETH"
 
-          total_in_usd += in_usd
-          total_in_btc += in_btc
-          total_in_eth += in_eth
+          self.total_in_usd += in_usd
+          self.total_in_btc += in_btc
+          self.total_in_eth += in_eth
         end
       end
     else
       puts "NO TOKENS FOUND! - Add them to tokens.yml"
     end
-
-    separator
-    print_report(formatted_usd(total_in_usd), formatted_crypto(total_in_btc), formatted_crypto(total_in_eth))
-    separator
-    puts
   end
 
   def formatted_usd(number)
@@ -67,8 +81,11 @@ class Coinz
     puts "*" * 100
   end
 
-  def print_report(total_in_usd, total_in_btc, total_in_eth)
-    puts "Total value of assets: $#{total_in_usd} / #{total_in_btc} BTC / #{total_in_eth} ETH"
+  def total_amount
+    formatted_usd_total = formatted_usd(total_in_usd)
+    formatted_btc_total = formatted_crypto(total_in_btc)
+    formatted_eth_total = formatted_crypto(total_in_eth)
+    puts "Total value of assets: $#{formatted_usd_total} / #{formatted_btc_total} BTC / #{formatted_eth_total} ETH"
   end
 
   def parsed_response
@@ -79,10 +96,7 @@ class Coinz
   end
 
   def tokens
-    @tokens ||= begin
-      tokens = YAML.load_file('tokens.yml')
-      tokens.select { |key, value| !value.zero? }
-    end
+    @tokens ||= YAML.load_file(File.join(File.dirname(__FILE__), 'tokens.yml'))
   end
 end
 
