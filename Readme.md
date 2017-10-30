@@ -38,3 +38,22 @@ Total value of assets: $19,184.81 / 5.176 BTC / 67.519 ETH
 ```
 
 Step 4: Smile and take comfort that you are a part of the financial revolution!
+
+---
+
+Additionally, you can pass in price overrides as arguments to see what your portfolio might look like with tokens at those prices.  For example:
+
+
+```
+  > ./coinz LTC=200 GNT=10.25
+
+****************************************************************************************************
+DASH: 22 @ $342.698 is worth: $7,539.35 / 2.030 BTC / 40.359 ETH
+LTC: 44 @ $200.0 is worth: $8,800.0 / 2.370 BTC / 47.108 ETH
+ETC: 503.12 @ $10.478 is worth: $5,271.69 / 1.419 BTC / 28.220 ETH
+BAT: 12,345.6 @ $0.208093 is worth: $2,569.03 / 0.691 BTC / 13.752 ETH
+GNT: 1,000 @ $10.25 is worth: $10,250.0 / 2.760 BTC / 54.870 ETH
+PIVX: 500 @ $2.86649 is worth: $1,433.24 / 0.386 BTC / 7.672 ETH
+****************************************************************************************************
+Total value of assets: $35,863.32 / 9.658 BTC / 191.984 ETH
+****************************************************************************************************
