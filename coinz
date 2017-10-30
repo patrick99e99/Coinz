@@ -15,9 +15,9 @@ class Coinz
     show_financial_status
   end
 
-  private
-
   attr_accessor :total_in_usd, :total_in_btc, :total_in_eth
+
+  private
 
   def show_financial_status
     system 'clear'
@@ -32,7 +32,7 @@ class Coinz
   def process_tokens
     if tokens.any?
       ethereum_price_in_btc = data_for('ethereum', parsed_response)['price_btc'].to_f
-
+      btc_price_in_usd      = get_btc_price_in_usd
       tokens.each do |ticker, amount|
         next if !amount || amount.zero?
 
@@ -41,11 +41,12 @@ class Coinz
         if !data
           puts "cannot find #{ticker}"
         else
-          in_usd = data['price_usd'].to_f * amount
-          in_btc = data['price_btc'].to_f * amount
-          in_eth = in_btc / ethereum_price_in_btc
+          usd_price = usd_price_for(data)
+          in_usd = usd_price * amount
+          in_btc = in_btc_for(data, in_usd, btc_price_in_usd, amount)
+          in_eth = data['symbol'].downcase == 'eth' ? amount : in_btc / ethereum_price_in_btc
 
-          puts "#{data['symbol']}: #{formatted_usd(amount)} @ $#{data['price_usd']} is worth: $#{formatted_usd(in_usd)} / #{formatted_crypto(in_btc)} BTC / #{formatted_crypto(in_eth)} ETH"
+          puts "#{data['symbol']}: #{formatted_usd(amount)} @ $#{usd_price} is worth: $#{formatted_usd(in_usd)} / #{formatted_crypto(in_btc)} BTC / #{formatted_crypto(in_eth)} ETH"
 
           self.total_in_usd += in_usd
           self.total_in_btc += in_btc
@@ -55,6 +56,39 @@ class Coinz
     else
       puts "NO TOKENS FOUND! - Add them to tokens.yml"
     end
+  end
+
+  def get_btc_price_in_usd
+    overrides.find do |override|
+      return override.last.to_f if override.first.downcase == 'btc'
+    end
+
+    data_for('bitcoin', parsed_response)['price_usd'].to_f
+  end
+
+  def usd_price_for(data)
+    overrides.find do |override|
+      return override.last.to_f if override.first.downcase == data['symbol'].downcase
+    end
+
+    data['price_usd'].to_f
+  end
+
+  def in_btc_for(data, in_usd, btc_price_in_usd, amount)
+    is_overriden = overrides.any? do |override|
+      symbol = override.first.downcase
+      symbol == 'btc' || symbol == data['symbol'].downcase
+    end
+
+    if is_overriden
+      in_usd / btc_price_in_usd
+    else
+      data['price_btc'].to_f * amount
+    end
+  end
+
+  def overrides
+    @overrides ||= ARGV.map { |token| token.split('=') }
   end
 
   def formatted_usd(number)
