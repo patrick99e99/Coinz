@@ -5,20 +5,17 @@ require 'json'
 require 'yaml'
 
 class Coinz
-  API_URL = 'https://api.coinmarketcap.com/v1/ticker/'
+  API_URL   = 'https://api.coinmarketcap.com/v1/ticker/?limit=2000'
+  DELIMITER = ' / '
 
   def initialize
-    @total_in_usd = 0
-    @total_in_btc = 0
-    @total_in_eth = 0
-
+    self.total = 0
     show_financial_status
   end
 
-  attr_accessor :total_in_usd, :total_in_btc, :total_in_eth
+  attr_accessor :total
 
   private
-
   def show_financial_status
     system 'clear'
     separator
@@ -31,26 +28,19 @@ class Coinz
 
   def process_tokens
     if tokens.any?
-      ethereum_price_in_btc = data_for('ethereum', parsed_response)['price_btc'].to_f
-      btc_price_in_usd      = get_btc_price_in_usd
       tokens.each do |ticker, amount|
-        next if !amount || amount.zero?
+        next if amount.to_i.zero?
 
-        data = data_for(ticker, parsed_response)
+        data = data_for('id', ticker)
 
         if !data
           puts "cannot find #{ticker}"
         else
-          usd_price = usd_price_for(data)
-          in_usd = usd_price * amount
-          in_btc = in_btc_for(data, in_usd, btc_price_in_usd, amount)
-          in_eth = data['symbol'].downcase == 'eth' ? amount : in_btc / ethereum_price_in_btc
+          in_usd = usd_price_for(data) * amount
 
-          puts "#{data['symbol']}: #{formatted_usd(amount)} @ $#{usd_price} is worth: $#{formatted_usd(in_usd)} / #{formatted_crypto(in_btc)} BTC / #{formatted_crypto(in_eth)} ETH"
+          puts "#{data['symbol']}: #{amount} @ #{formatted_usd(usd_price_for(data))} is worth: #{prices_for(in_usd).join(DELIMITER)}"
 
-          self.total_in_usd += in_usd
-          self.total_in_btc += in_btc
-          self.total_in_eth += in_eth
+          self.total += in_usd
         end
       end
     else
@@ -58,68 +48,89 @@ class Coinz
     end
   end
 
-  def get_btc_price_in_usd
-    overrides.find do |override|
-      return override.last.to_f if override.first.downcase == 'btc'
+  def prices_for(in_usd)
+    currencies.map do |currency|
+      if currency == 'usd'
+        formatted_usd(in_usd)
+      else
+        currency_data = data_for('symbol', currency)
+        if !currency_data
+          puts "cannot find #{currency}"
+        else
+          formatted_crypto(in_usd / usd_price_for(currency_data), currency)
+        end
+      end
     end
+  end
 
-    data_for('bitcoin', parsed_response)['price_usd'].to_f
+  def btc_price_in_usd
+    @btc_price ||= (overrides['btc'] ? overrides['btc'] : data_for('symbol', 'btc')['price_usd']).to_f
   end
 
   def usd_price_for(data)
-    overrides.find do |override|
-      return override.last.to_f if override.first.downcase == data['symbol'].downcase
-    end
-
-    data['price_usd'].to_f
-  end
-
-  def in_btc_for(data, in_usd, btc_price_in_usd, amount)
-    is_overriden = overrides.any? do |override|
-      symbol = override.first.downcase
-      symbol == 'btc' || symbol == data['symbol'].downcase
-    end
-
-    if is_overriden
-      in_usd / btc_price_in_usd
-    else
-      data['price_btc'].to_f * amount
-    end
+    override = overrides[data['symbol'].downcase]
+    (override ? override : data['price_usd']).to_f
   end
 
   def overrides
-    @overrides ||= ARGV.map { |token| token.split('=') }
+    @overrides ||= Hash[ARGV.map do |token|
+      token.split('=').map {|item| item =~ /[a-z]/i ? item.downcase : item.to_f }
+    end]
+  end
+
+  def currencies
+    @currencies ||= overrides['currencies'] ? overrides['currencies'].split(',') : ['usd', 'btc']
   end
 
   def formatted_usd(number)
     digits, fraction = number.to_s.split('.')
-    [digits.reverse.gsub(/...(?=.)/,'\&,').reverse].tap do |output|
+    amount = [digits.reverse.gsub(/...(?=.)/,'\&,').reverse].tap do |output|
       if fraction
         output.concat(['.', fraction[0..1]])
       end
     end.join
+    "$#{amount}"
   end
 
-  def formatted_crypto(number)
+  def formatted_crypto(number, symbol)
     formatted = number.to_s.scan(/\d+\.\d{3}/).last
-    formatted.nil? ? number : formatted
+    amount = formatted.nil? ? number : formatted
+    "#{amount} #{symbol.upcase}"
   end
 
-  def data_for(ticker, parsed_response)
+  def data_for(key, value)
     parsed_response.find do |entry|
-      entry['id'] == ticker
+      entry[key].downcase == value
     end
   end
 
   def separator
-    puts "*" * 100
+    puts "*" * characters
+  end
+
+  def characters
+    @characters ||= begin
+      `tput cols`.to_i
+    rescue
+      100
+    end
   end
 
   def total_amount
-    formatted_usd_total = formatted_usd(total_in_usd)
-    formatted_btc_total = formatted_crypto(total_in_btc)
-    formatted_eth_total = formatted_crypto(total_in_eth)
-    puts "Total value of assets: $#{formatted_usd_total} / #{formatted_btc_total} BTC / #{formatted_eth_total} ETH"
+    totals = currencies.map do |currency|
+      if currency == 'usd'
+        formatted_usd(total)
+      else
+        data = data_for('symbol', currency)
+        if !data
+          puts "cannot find #{currency}"
+        else
+          formatted_crypto(total / usd_price_for(data), data['symbol'])
+        end
+      end
+    end
+
+    puts "Total value of assets: #{totals.join(DELIMITER)}"
   end
 
   def parsed_response
