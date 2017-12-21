@@ -10,20 +10,34 @@ class Coinz
 
   def initialize
     self.total = 0
-    show_financial_status
+    process_tokens
+    print_output
   end
 
   attr_accessor :total
 
   private
-  def show_financial_status
+
+  def print_output
     system 'clear'
+
     separator
-    process_tokens
+
+    holdings.each do |symbol, data|
+      percentage = formatted_number(data[:value_in_usd] / total * 100)
+      spacer_1 = symbol.length == 3 ? '  ': ' '
+      spacer_2 = percentage.to_s.length == 4 ? '  ': ' '
+      puts "#{symbol}#{spacer_1}(#{percentage}%):#{spacer_2}#{data[:amount]} @ #{data[:current_price]} is worth: #{data[:values]}"
+    end
+
     separator
     total_amount
     separator
     puts
+  end
+
+  def holdings
+    @holdings ||= {}
   end
 
   def process_tokens
@@ -37,8 +51,7 @@ class Coinz
           puts "cannot find #{ticker}"
         else
           in_usd = usd_price_for(data) * amount
-
-          puts "#{data['symbol']}: #{amount} @ #{formatted_usd(usd_price_for(data))} is worth: #{prices_for(in_usd).join(DELIMITER)}"
+          holdings[data['symbol']] = { :amount => formatted_number(amount), :current_price => formatted_usd(usd_price_for(data)), :value_in_usd => in_usd, :values => prices_for(in_usd).join(DELIMITER) }
 
           self.total += in_usd
         end
@@ -82,14 +95,17 @@ class Coinz
     @currencies ||= overrides['currencies'] ? overrides['currencies'].split(',') : ['usd', 'btc']
   end
 
-  def formatted_usd(number)
+  def formatted_number(number)
     digits, fraction = number.to_s.split('.')
     amount = [digits.reverse.gsub(/...(?=.)/,'\&,').reverse].tap do |output|
       if fraction
-        output.concat(['.', fraction[0..1]])
+        output.concat(['.', (fraction << '0')[0..1]])
       end
     end.join
-    "$#{amount}"
+  end
+
+  def formatted_usd(number)
+    "$#{formatted_number(number)}"
   end
 
   def formatted_crypto(number, symbol)
