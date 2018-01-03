@@ -23,12 +23,7 @@ class Coinz
 
     separator
 
-    holdings.each do |symbol, data|
-      percentage = formatted_number(data[:value_in_usd] / total * 100)
-      spacer_1 = symbol.length == 3 ? '  ': ' '
-      spacer_2 = percentage.to_s.length == 4 ? '  ': ' '
-      puts "#{symbol}#{spacer_1}(#{percentage}%):#{spacer_2}#{data[:amount]} @ #{data[:current_price]} is worth: #{data[:values]}"
-    end
+    sorted(processed_tokens).each { |holding| puts holding[:output] }
 
     separator
     total_amount
@@ -38,6 +33,37 @@ class Coinz
 
   def holdings
     @holdings ||= {}
+  end
+
+  def processed_tokens
+    holdings.map do |symbol, data|
+      percentage = data[:value_in_usd] / total * 100
+      formatted_percentage = formatted_number(percentage)
+      spacer_1 = symbol.length == 3 ? '  ': ' '
+      spacer_2 = percentage.to_s.length == 4 ? '  ': ' '
+      {
+        :symbol => symbol,
+        :percentage => percentage,
+        :output => "#{symbol}#{spacer_1}(#{formatted_percentage}%):#{spacer_2}#{data[:amount]} @ #{data[:current_price]} is worth: #{data[:values]}"
+      }
+    end
+  end
+
+  def sorted(collection)
+    return collection unless sort
+    sort_key = sort[:key]
+    collection.sort do |a, b|
+
+      if sort[:ascending]
+        object_1 = a
+        object_2 = b
+      else
+        object_1 = b
+        object_2 = a
+      end
+
+      object_1[sort_key] <=> object_2[sort_key]
+    end
   end
 
   def process_tokens
@@ -93,6 +119,17 @@ class Coinz
 
   def currencies
     @currencies ||= overrides['currencies'] ? overrides['currencies'].split(',') : ['usd', 'btc']
+  end
+
+  def sort
+    @sort ||= begin
+      case overrides['sort'].to_s.downcase
+      when /percent/
+        { :key => :percentage, :ascending => false }
+      when /sym/
+        { :key => :symbol, :ascending => true }
+      end
+    end
   end
 
   def formatted_number(number)
