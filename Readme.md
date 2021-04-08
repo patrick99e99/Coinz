@@ -4,7 +4,9 @@ Have you ever wondered how many BTC or ETH your crypto portolio would be worth
 if you were to convert out of all your alt coins?  Introducing COINZ, a simple
 executable bash script (with ruby under the hood) that will do just that!
 
-Step 1: Edit the tokens.yml file and add your token holdings
+Step 1: Edit the key.txt file and replace the current text with your coinmarketcap pro api key
+
+Step 2: Edit the tokens.yml file and add your token holdings
 
 ```
   ---
@@ -16,7 +18,7 @@ Step 1: Edit the tokens.yml file and add your token holdings
   pivx: 500
 ```
 
-Step 2: Run the coinz script
+Step 3: Run the coinz script
 
 ```
   > ./coinz

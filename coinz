@@ -5,7 +5,7 @@ require 'json'
 require 'yaml'
 
 class Coinz
-  API_URL   = 'https://api.coinmarketcap.com/v1/ticker/?limit=2000'
+  API_URL   = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=USD'
   DELIMITER = ' / '
 
   def initialize
@@ -71,11 +71,12 @@ class Coinz
       tokens.each do |ticker, amount|
         next if amount.to_i.zero?
 
-        data = data_for('id', ticker)
+        data = data_for('slug', ticker)
 
         if !data
           puts "cannot find #{ticker}"
         else
+
           in_usd = usd_price_for(data) * amount
           holdings[data['symbol']] = { :amount => formatted_number(amount), :current_price => formatted_usd(usd_price_for(data)), :value_in_usd => in_usd, :values => prices_for(in_usd).join(DELIMITER) }
 
@@ -108,7 +109,7 @@ class Coinz
 
   def usd_price_for(data)
     override = overrides[data['symbol'].downcase]
-    (override ? override : data['price_usd']).to_f
+    (override ? override : data['quote']['USD']['price']).to_f
   end
 
   def overrides
@@ -152,7 +153,7 @@ class Coinz
   end
 
   def data_for(key, value)
-    parsed_response.find do |entry|
+    parsed_response['data'].find do |entry|
       entry[key].downcase == value
     end
   end
@@ -188,9 +189,18 @@ class Coinz
 
   def parsed_response
     @parsed_response ||= begin
-      response_body = Net::HTTP.get(URI.parse(API_URL))
-      JSON.parse(response_body)
+                           uri = URI.parse(API_URL)
+                           request = Net::HTTP::Get.new(uri)
+                           request['X-CMC_PRO_API_KEY'] = cmc_api_key
+                           response = Net::HTTP.start(uri.hostname, uri.port, :use_ssl => true) do |http|
+                             http.request(request)
+                           end
+                           JSON.parse(response.body)
     end
+  end
+
+  def cmc_api_key
+    @cmc_api_key ||= File.read('key.txt').chomp
   end
 
   def tokens
