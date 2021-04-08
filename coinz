@@ -3,10 +3,13 @@
 require 'net/http'
 require 'json'
 require 'yaml'
+require 'time'
 
 class Coinz
-  API_URL   = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=USD'
-  DELIMITER = ' / '
+  API_URL                = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=USD'
+  CACHE_LIMIT_IN_SECONDS = 60
+  CACHE_RESPONSE_FILE    = 'last_response.json'
+  DELIMITER              = ' / '
 
   def initialize
     self.total = 0
@@ -189,13 +192,44 @@ class Coinz
 
   def parsed_response
     @parsed_response ||= begin
-                           uri = URI.parse(API_URL)
-                           request = Net::HTTP::Get.new(uri)
-                           request['X-CMC_PRO_API_KEY'] = cmc_api_key
-                           response = Net::HTTP.start(uri.hostname, uri.port, :use_ssl => true) do |http|
-                             http.request(request)
+                           if should_use_cached_response?
+                             cached_response
+                           else
+                             response = make_api_call
+                             update_cached_response_with(response)
+                             JSON.parse(response.body)
                            end
-                           JSON.parse(response.body)
+                         end
+  end
+
+  def make_api_call
+    uri = URI.parse(API_URL)
+    request = Net::HTTP::Get.new(uri)
+    request['X-CMC_PRO_API_KEY'] = cmc_api_key
+    Net::HTTP.start(uri.hostname, uri.port, :use_ssl => true) do |http|
+      http.request(request)
+    end
+  end
+
+  def should_use_cached_response?
+    begin
+      Time.parse((cached_response['status'] || {})['timestamp'])&.utc >= (Time.now.utc - CACHE_LIMIT_IN_SECONDS)
+    rescue ArgumentError
+      false
+    end
+  end
+
+  def update_cached_response_with(response)
+    File.open(CACHE_RESPONSE_FILE, 'w') do |file|
+      file.puts response.body
+    end
+  end
+
+  def cached_response
+    @cached_response ||= begin
+      JSON.parse(File.read(CACHE_RESPONSE_FILE))
+    rescue Errno::ENOENT, ArgumentError, JSON::ParserError
+      {}
     end
   end
 
