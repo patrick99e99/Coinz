@@ -7,8 +7,10 @@ require 'time'
 
 class Coinz
   API_URL                = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=USD'
+  API_KEY_FILE           = 'key.txt'
   CACHE_LIMIT_IN_SECONDS = 60
   CACHE_RESPONSE_FILE    = 'last_response.json'
+  TOKEN_FILE             = 'tokens.yml'
   DELIMITER              = ' / '
 
   def initialize
@@ -156,7 +158,7 @@ class Coinz
   end
 
   def data_for(key, value)
-    parsed_response['data'].find do |entry|
+    (parsed_response['data'] || []).find do |entry|
       entry[key].downcase == value
     end
   end
@@ -197,7 +199,7 @@ class Coinz
                            else
                              response = make_api_call
                              update_cached_response_with(response)
-                             JSON.parse(response.body)
+                             parsed = JSON.parse(response.body)
                            end
                          end
   end
@@ -214,31 +216,35 @@ class Coinz
   def should_use_cached_response?
     begin
       Time.parse((cached_response['status'] || {})['timestamp'])&.utc >= (Time.now.utc - CACHE_LIMIT_IN_SECONDS)
-    rescue ArgumentError
+    rescue ArgumentError, TypeError
       false
     end
   end
 
   def update_cached_response_with(response)
-    File.open(CACHE_RESPONSE_FILE, 'w') do |file|
+    File.open(path_for(CACHE_RESPONSE_FILE), 'w') do |file|
       file.puts response.body
     end
   end
 
   def cached_response
     @cached_response ||= begin
-      JSON.parse(File.read(CACHE_RESPONSE_FILE))
+      JSON.parse(File.read(path_for(CACHE_RESPONSE_FILE)))
     rescue Errno::ENOENT, ArgumentError, JSON::ParserError
       {}
     end
   end
 
   def cmc_api_key
-    @cmc_api_key ||= File.read('key.txt').chomp
+    @cmc_api_key ||= File.read(path_for(API_KEY_FILE)).chomp
   end
 
   def tokens
-    @tokens ||= YAML.load_file(File.join(File.dirname(__FILE__), 'tokens.yml'))
+    @tokens ||= YAML.load_file(path_for(TOKEN_FILE))
+  end
+
+  def path_for(file)
+    File.join(File.dirname(__FILE__), file)
   end
 end
 
