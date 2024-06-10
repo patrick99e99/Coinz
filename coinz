@@ -74,17 +74,14 @@ class Coinz
   def process_tokens
     if tokens.any?
       tokens.each do |ticker, amount|
-        next if amount.to_i.zero?
-
+        next unless amount
         data = data_for('slug', ticker)
 
         if !data
           puts "cannot find #{ticker}"
         else
-
           in_usd = usd_price_for(data) * amount
           holdings[data['symbol']] = { :amount => formatted_number(amount), :current_price => formatted_usd(usd_price_for(data)), :value_in_usd => in_usd, :values => prices_for(in_usd).join(DELIMITER) }
-
           self.total += in_usd
         end
       end
@@ -148,7 +145,13 @@ class Coinz
   end
 
   def formatted_usd(number)
-    "$#{formatted_number(number)}"
+    formatted = formatted_number(number)
+    if formatted == '0.00'
+      number_string = number.to_s
+      index = number_string.index(/[^0\.]/) || 0
+      formatted = number_string[0..index + 3]
+    end
+    "$#{formatted}"
   end
 
   def formatted_crypto(number, symbol)
@@ -244,7 +247,8 @@ class Coinz
   end
 
   def path_for(file)
-    File.join(File.dirname(__FILE__), file)
+    path = File.symlink?(__FILE__) ? File.readlink(__FILE__) : __FILE__
+    File.join(File.dirname(path), file)
   end
 end
 
